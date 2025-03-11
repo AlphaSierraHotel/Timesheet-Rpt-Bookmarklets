@@ -1,8 +1,12 @@
 (async function() {
+    console.log("Script started.");
+
     // 01-Add-100-Selection.js
     async function add100Selection() {
+        console.log("add100Selection function called.");
         var selectElement = document.querySelector('#DataTables_Table_0_length select');
         if (selectElement) {
+            console.log("Select element found.");
             var newOption = document.createElement('option');
             newOption.value = '100';
             newOption.text = '100';
@@ -10,6 +14,7 @@
             selectElement.value = '100';
             var event = new Event('change', { bubbles: true });
             selectElement.dispatchEvent(event);
+            console.log("Option added and change event dispatched.");
 
             // Wait for the data to load
             await new Promise(resolve => {
@@ -21,11 +26,15 @@
                 });
                 observer.observe(document.querySelector('#DataTables_Table_0 tbody'), { childList: true });
             });
+            console.log("Data loaded.");
+        } else {
+            console.log("Select element not found.");
         }
     }
 
     // 02-Remove-Non-Hourly-Summary.js and 04-Remove-Non-Hourly-Details.js combined
     function removeNonHourlyEntries() {
+        console.log("removeNonHourlyEntries function called.");
         var namesToRemove = [
             'Anthony Dos Santos', 'Sub Trade', 'Allen Hubble', 'Carefree Plumbing Inc',
             'City Centre Contractors', 'Frank Facchini', 'Sera Weatherall', 'Shawna Brooker', 'Sherry Facchini'
@@ -37,6 +46,7 @@
             var text = item.textContent || item.innerText;
             if (namesToRemove.some(function(name) { return text.includes(name); })) {
                 item.remove();
+                console.log("Removed summary item:", text);
             }
         });
 
@@ -51,6 +61,7 @@
 
             if (namesToRemove.includes(name)) {
                 row.remove();
+                console.log("Removed detail row for:", name);
             } else {
                 total += hours;
                 count++;
@@ -60,16 +71,19 @@
         const totalCell = document.querySelector("#DataTables_Table_0 .totals td.u-textRight");
         if (totalCell) {
             totalCell.textContent = total.toFixed(2);
+            console.log("Updated total cell:", total.toFixed(2));
         }
 
         const info = document.querySelector("#DataTables_Table_0_info");
         if (info) {
             info.textContent = `Showing 1 to ${count} of ${count} entries`;
+            console.log("Updated info text:", info.textContent);
         }
     }
 
     // 03-Update-Summary-Total.js
     function updateSummaryTotal() {
+        console.log("updateSummaryTotal function called.");
         var total = 0;
         var items = document.querySelectorAll("#summary .list-item");
 
@@ -104,12 +118,16 @@
 
     // 05-Adjust Columns.js
     function adjustColumns() {
+        console.log("adjustColumns function called.");
         const headers = document.querySelectorAll("#DataTables_Table_0 thead td");
         if (headers.length >= 4) {
             headers[0].style.width = "20%";
             headers[1].style.width = "15%";
             headers[2].style.width = "10%";
             headers[3].style.width = "55%";
+            console.log("Adjusted column widths.");
+        } else {
+            console.log("Not enough headers found to adjust columns.");
         }
     }
 
@@ -120,8 +138,10 @@
     window.adjustColumns = adjustColumns;
 
     // Execute functions in the required order
+    console.log("Executing functions in order.");
     await add100Selection();
     removeNonHourlyEntries();
     updateSummaryTotal();
     adjustColumns();
+    console.log("Script execution completed.");
 })();
