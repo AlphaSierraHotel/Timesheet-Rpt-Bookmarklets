@@ -1,15 +1,1 @@
-javascript:(function() {
-    if (!document.getElementById('combined-script')) {
-        var script = document.createElement('script');
-        script.id = 'combined-script';
-        script.src = 'https://github.com/yourusername/yourrepository/combined-script.js';
-        document.body.appendChild(script);
-    } else {
-        console.log('Script already loaded.');
-        // Execute functions in the required order
-        add100Selection();
-        removeNonHourlyEntries();
-        updateSummaryTotal();
-        adjustColumns();
-    }
-})();
+javascript:(function()%7Bif(!document.getElementById('combined-script'))%7Bvar%20script=document.createElement('script');script.id='combined-script';script.src='https://github.com/AlphaSierraHotel/Bookmarklets/blob/main/combined-script.js';document.body.appendChild(script);%7Delse%7Bconsole.log('Script%20already%20loaded.');add100Selection();removeNonHourlyEntries();updateSummaryTotal();adjustColumns();%7D%7D)();
