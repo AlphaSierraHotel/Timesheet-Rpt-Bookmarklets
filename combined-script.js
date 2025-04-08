@@ -36,7 +36,7 @@
     function removeNonHourlyEntries() {
         console.log("removeNonHourlyEntries function called.");
         var namesToRemove = [
-            'Anthony Dos Santos', 'Sub Trade', 'Allen Hubble', 'Carefree Plumbing Inc',
+            'Anthony Dos Santos', 'Sub Trade', 'Allen Hubble', 'Carefree Plumbing Inc', 'Scott Hubble',
             'City Centre Contractors', 'Frank Facchini', 'Sera Weatherall', 'Shawna Brooker', 'Sherry Facchini'
         ];
 
