@@ -1,1 +1,11 @@
-javascript:(function()%7Bif(!document.getElementById('combined-script'))%7Bvar%20script=document.createElement('script');script.id='combined-script';script.src='https://github.com/AlphaSierraHotel/Bookmarklets/blob/main/combined-script.js';document.body.appendChild(script);%7Delse%7Bconsole.log('Script%20already%20loaded.');add100Selection();removeNonHourlyEntries();updateSummaryTotal();adjustColumns();%7D%7D)();
+javascript:(function() {
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/gh/AlphaSierraHotel/Timesheet-Rpt-Bookmarklets/test-bookmarklet.js';
+    script.onload = function() {
+        console.log("Script loaded and executed.");
+    };
+    script.onerror = function() {
+        console.error("Failed to load the script.");
+    };
+    document.body.appendChild(script);
+})();
