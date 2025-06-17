@@ -116,18 +116,57 @@
         }
     }
 
+    // Define the desired columns
+    const desiredColumns = ["Name", "Date", "Hours", "Working on"];
+    
+    // Function to check the currently displayed table headers
+    function getDisplayedTableHeaders() {
+        const tableHeaders = Array.from(document.querySelectorAll('#DataTables_Table_0 thead tr td'));
+        return tableHeaders.map(header => header.innerText.trim());
+    }
+
+    // Function to click on inputs to adjust column visibility
+    function adjustColumnVisibility() {
+        const displayedHeaders = getDisplayedTableHeaders();
+        const labels = document.querySelectorAll('#column_selector_menu label');
+    
+        labels.forEach(label => {
+            const input = label.querySelector('input'); // Get the input within the label
+            const columnName = label.innerHTML.replace(input.outerHTML, '').trim(); // Get the inner HTML excluding the input
+    
+            // Determine if the column should be displayed
+            const shouldDisplay = desiredColumns.includes(columnName);
+    
+            // Check if the column is currently displayed based on the headers
+            const isDisplayed = displayedHeaders.includes(columnName);
+    
+            // Click the input to adjust visibility based on the desired state
+            if (shouldDisplay && !isDisplayed) {
+                console.log(`Turning on column: ${columnName}`); // Log message
+                input.click(); // Click to turn on the column
+            } else if (!shouldDisplay && isDisplayed) {
+                console.log(`Turning off column: ${columnName}`); // Log message
+                input.click(); // Click to turn off the column
+            }
+        });
+    }
+
     // 05-Adjust Columns.js
     function adjustColumns() {
         console.log("adjustColumns function called.");
+        
+        // Execute the function to adjust column visibility
+        adjustColumnVisibility();
+        
         const headers = document.querySelectorAll("#DataTables_Table_0 thead td");
-        if (headers.length >= 4) {
+        if (headers.length == 4) {
             headers[0].style.width = "20%";
             headers[1].style.width = "15%";
             headers[2].style.width = "10%";
             headers[3].style.width = "55%";
             console.log("Adjusted column widths.");
         } else {
-            console.log("Not enough headers found to adjust columns.");
+            console.log("Incorrect number of headers found.");
         }
     }
 
