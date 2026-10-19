@@ -17,15 +17,36 @@
             selectElement.dispatchEvent(event);
             console.log("Option added and change event dispatched.");
 
-            // Wait for the data to load
+            // Wait for the data to load without hanging indefinitely if the table is missing or slow.
+            const tbody = document.querySelector('#DataTables_Table_0 tbody');
             await new Promise(resolve => {
-                var observer = new MutationObserver((mutations, observerInstance) => {
+                if (!tbody) {
+                    console.warn("Table body not found; skipping wait for data load.");
+                    resolve();
+                    return;
+                }
+
+                let settled = false;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    observer.disconnect();
+                    resolve();
+                };
+
+                const observer = new MutationObserver(() => {
                     if (document.querySelector('#DataTables_Table_0 tbody tr')) {
-                        observerInstance.disconnect();
-                        resolve();
+                        finish();
                     }
                 });
-                observer.observe(document.querySelector('#DataTables_Table_0 tbody'), { childList: true });
+
+                if (document.querySelector('#DataTables_Table_0 tbody tr')) {
+                    finish();
+                    return;
+                }
+
+                observer.observe(tbody, { childList: true, subtree: true });
+                setTimeout(finish, 5000);
             });
             console.log("Data loaded.");
         } else {
@@ -95,20 +116,28 @@
         var items = document.querySelectorAll("#summary .list-item");
 
         items.forEach(function(item) {
-            var name = item.querySelector(".columns").textContent.trim();
+            var nameElement = item.querySelector(".columns");
+            var hoursElement = item.querySelector(".shrink.columns");
+
+            if (!nameElement || !hoursElement) {
+                console.log("Skipping malformed summary item.");
+                return;
+            }
+
+            var name = nameElement.textContent.trim();
             if (name.includes("Total hours")) {
                 console.log('Skipping "Total hours" entry:', name);
                 return;
             }
 
-            var hoursText = item.querySelector(".shrink.columns").textContent || item.querySelector(".shrink.columns").innerText;
-            var hours = parseFloat(hoursText.replace(" hours", ""));
+            var hoursText = hoursElement.textContent || hoursElement.innerText || "";
+            var hours = parseFloat((hoursText || "").replace(/[^0-9.-]+/g, ""));
 
             if (!isNaN(hours)) {
                 console.log("Including in total:", name, hours);
                 total += hours;
             } else {
-                console.log("Excluding from total (NaN):", name);
+                console.log("Excluding from total (NaN):", name, hoursText);
             }
         });
 
@@ -138,8 +167,17 @@
         const labels = document.querySelectorAll('#column_selector_menu label');
     
         labels.forEach(label => {
-            const input = label.querySelector('input'); // Get the input within the label
-            const columnName = label.innerHTML.replace(input.outerHTML, '').trim(); // Get the inner HTML excluding the input
+            const input = label.querySelector('input');
+            if (!input) {
+                console.log("Skipping column selector label without an input.");
+                return;
+            }
+
+            const columnName = label.textContent.trim();
+            if (!columnName) {
+                console.log("Skipping blank column selector label.");
+                return;
+            }
     
             // Determine if the column should be displayed
             const shouldDisplay = desiredColumns.includes(columnName);
