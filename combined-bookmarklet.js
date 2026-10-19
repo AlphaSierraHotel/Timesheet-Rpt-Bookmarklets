@@ -1,6 +1,6 @@
 javascript:(function() {
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/gh/AlphaSierraHotel/Timesheet-Rpt-Bookmarklets/combined-script.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/AlphaSierraHotel/Timesheet-Rpt-Bookmarklets@latest/combined-script.js';
     script.onload = function() {
         console.log("Script loaded and executed.");
     };
