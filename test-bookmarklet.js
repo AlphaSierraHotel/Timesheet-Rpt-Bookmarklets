@@ -1,1 +1,0 @@
-console.log("Bookmarklet executed successfully!");
