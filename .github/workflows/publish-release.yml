@@ -1,0 +1,80 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version in vMAJOR.MINOR.PATCH format (for example, v0.2.3)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Releases must be started from the main branch." >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          if not re.fullmatch(r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+              raise SystemExit("Version must use vMAJOR.MINOR.PATCH format, such as v0.2.3")
+
+          path = Path("combined-script.js")
+          source = path.read_text()
+          pattern = re.compile(r'(?m)^([ \t]*const RELEASE_VERSION = ")[^"]+(";)')
+          updated, count = pattern.subn(lambda match: f"{match.group(1)}{version}{match.group(2)}", source)
+          if count != 1:
+              raise SystemExit("Expected exactly one RELEASE_VERSION declaration in combined-script.js")
+
+          path.write_text(updated)
+          PY
+
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$RELEASE_VERSION")" ]; then
+            echo "Tag $RELEASE_VERSION already exists." >&2
+            exit 1
+          fi
+
+      - name: Commit version update
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git diff --quiet -- combined-script.js; then
+            git add combined-script.js
+            git commit -m "chore: release $RELEASE_VERSION"
+          fi
+
+          echo "target=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push version update
+        run: git push origin HEAD:main
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TARGET: ${{ steps.commit.outputs.target }}
+        run: gh release create "$RELEASE_VERSION" --target "$RELEASE_TARGET" --title "$RELEASE_VERSION" --generate-notes

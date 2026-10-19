@@ -1,5 +1,6 @@
 (async function() {
-    console.log("Script started.");
+    const RELEASE_VERSION = "v0.2.2";
+    console.log(`Script started. Version: ${RELEASE_VERSION}`);
 
     // 01-Add-100-Selection.js
     async function add100Selection() {
