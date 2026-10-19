@@ -37,7 +37,7 @@
         console.log("removeNonHourlyEntries function called.");
         var namesToRemove = [
             'Jobber Costing Pilot Admin', 'Sub Trade', 'Allen Hubble', 'Carefree Plumbing Inc', 'Scott Hubble',
-            'City Centre Contractors', 'Frank Facchini', 'Sherry Facchini'
+            'City Centre Contractors', 'Frank Facchini', 'Sherry Facchini', 'JJ Donws'
         ];
 
         // Remove non-hourly summary items
