@@ -78,3 +78,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TARGET: ${{ steps.commit.outputs.target }}
         run: gh release create "$RELEASE_VERSION" --target "$RELEASE_TARGET" --title "$RELEASE_VERSION" --generate-notes
+
+  purge-cdn:
+    needs: release
+    uses: ./.github/workflows/purge-cdn.yml

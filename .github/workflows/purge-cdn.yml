@@ -1,12 +1,12 @@
 name: Purge jsDelivr CDN Cache
 
 on:
-  release:
-    types: [published]
+  workflow_call:
 
 jobs:
   purge-cache:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: Wait 30 minutes for jsDelivr origin sync
         run: |
@@ -15,12 +15,10 @@ jobs:
           echo "Wait complete. Proceeding with purge."
 
       - name: Purge `combined-script.js`
+        env:
+          CDN_PURGE_URL: https://purge.jsdelivr.net/gh/${{ github.repository }}@latest/combined-script.js
         run: |
-          # Construct the exact URL for your file
-          URL="https://jsdelivr.net\${{ github.repository }}@latest/combined-script.js"
-          
-          echo "Purging: \$URL"
-          
-          # Send the request and capture the HTTP status code
-          RESPONSE=\((curl -s -o /dev/null -w "\%{http_code}" "\)URL")
-          echo "Status Code: \$RESPONSE"
+          echo "Purging: $CDN_PURGE_URL"
+          curl --fail-with-body --silent --show-error \
+            --write-out '\nHTTP %{http_code}\n' \
+            "$CDN_PURGE_URL"
