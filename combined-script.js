@@ -1,62 +1,213 @@
 (async function() {
-    const RELEASE_VERSION = "v0.2.2";
-    console.log(`Script started. Version: ${RELEASE_VERSION}`);
+    const RELEASE_VERSION = "v0.3.0";
+    console.log(`Timesheet report cleanup ${RELEASE_VERSION} started.`);
 
-    // 01-Add-100-Selection.js
-    async function add100Selection() {
-        console.log("add100Selection function called.");
-        var selectElement = document.querySelector('#DataTables_Table_0_length select');
-        if (selectElement) {
-            console.log("Select element found.");
-            var newOption = document.createElement('option');
-            newOption.value = '100';
-            newOption.text = '100';
-            selectElement.appendChild(newOption);
-            selectElement.value = '100';
-            var event = new Event('change', { bubbles: true });
-            selectElement.dispatchEvent(event);
-            console.log("Option added and change event dispatched.");
-
-            // Wait for the data to load without hanging indefinitely if the table is missing or slow.
-            const tbody = document.querySelector('#DataTables_Table_0 tbody');
-            await new Promise(resolve => {
-                if (!tbody) {
-                    console.warn("Table body not found; skipping wait for data load.");
-                    resolve();
-                    return;
+    // Collect the pay period and week selection.
+    function collectPayrollInfo() {
+        return new Promise(resolve => {
+            const style = document.createElement('style');
+            style.textContent = `
+                #payrollInfoOverlay {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 2147483647;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(0, 0, 0, 0.45);
                 }
-
-                let settled = false;
-                const finish = () => {
-                    if (settled) return;
-                    settled = true;
-                    observer.disconnect();
-                    resolve();
-                };
-
-                const observer = new MutationObserver(() => {
-                    if (document.querySelector('#DataTables_Table_0 tbody tr')) {
-                        finish();
-                    }
-                });
-
-                if (document.querySelector('#DataTables_Table_0 tbody tr')) {
-                    finish();
-                    return;
+                #payrollInfoDialog {
+                    box-sizing: border-box;
+                    width: min(432px, calc(100vw - 32px));
                 }
+            `;
 
-                observer.observe(tbody, { childList: true, subtree: true });
-                setTimeout(finish, 5000);
+            const overlay = document.createElement('div');
+            overlay.id = 'payrollInfoOverlay';
+            overlay.innerHTML = `
+                <form id="payrollInfoDialog" class="card card--paddingNone" role="dialog"
+                    aria-modal="true" aria-labelledby="payrollInfoTitle">
+                    <div class="card-header card-header--bgFill">
+                        <span class="card-headerTitle" id="payrollInfoTitle">Report payroll period</span>
+                    </div>
+                    <div style="padding: var(--space-slim) var(--space-base)">
+                        <label class="fieldLabel u-textBold" for="payrollPeriodRemainder">Pay period</label>
+                        <input id="payrollPeriodRemainder" class="input u-marginBottomSmaller"
+                            type="text" required pattern="[0-9]{2}-[0-9]{2}" maxlength="5"
+                            placeholder="YY-##" aria-describedby="payrollPeriodFormat"
+                            style="display: block; width: 100%; box-sizing: border-box">
+                        <small id="payrollPeriodFormat">Enter the two-digit year and pay period number, e.g. 26-22.</small>
+                        <fieldset class="u-marginTopSmall" style="border-radius: var(--radius-base) var(--radius-base) !important">
+                            <legend class="fieldLabel u-textBold">Pay period week</legend>
+                            <div class="flexBlock flexBlock--noGrow">
+                                <div class="radio radio--button">
+                                    <input id="payrollWeekOne" type="radio" name="payrollWeek"
+                                        value="Week One" required>
+                                    <label class="radio-label" for="payrollWeekOne">Week One</label>
+                                </div>
+                                <div class="radio radio--button">
+                                    <input id="payrollWeekTwo" type="radio" name="payrollWeek"
+                                        value="Week Two">
+                                    <label class="radio-label" for="payrollWeekTwo">Week Two</label>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <div class="dialog-actions">
+                            <div class="flexBlock flexBlock--noGrow">
+                                <button type="submit" class="button button--green">Continue</button>
+                                <button type="button" id="payrollInfoCancel" class="button button--ghost">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            `;
+
+            let settled = false;
+            const finish = value => {
+                if (settled) return;
+                settled = true;
+                document.removeEventListener('keydown', handleKeydown);
+                overlay.remove();
+                style.remove();
+                resolve(value);
+            };
+            const handleKeydown = event => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    finish(null);
+                }
+            };
+
+            document.head.appendChild(style);
+            document.body.appendChild(overlay);
+            const form = overlay.querySelector('#payrollInfoDialog');
+            const periodInput = overlay.querySelector('#payrollPeriodRemainder');
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                if (!form.reportValidity()) return;
+
+                const week = form.querySelector('input[name="payrollWeek"]:checked').value;
+                finish({ payPeriod: 'PP' + periodInput.value.trim(), week: week });
             });
-            console.log("Data loaded.");
-        } else {
-            console.log("Select element not found.");
-        }
+            overlay.querySelector('#payrollInfoCancel').addEventListener('click', () => finish(null));
+            document.addEventListener('keydown', handleKeydown);
+            periodInput.focus();
+        });
     }
 
-    // 02-Remove-Non-Hourly-Summary.js and 04-Remove-Non-Hourly-Details.js combined
+    // Insert or update the payroll subtitle.
+    function updateReportSubtitle(payrollInfo) {
+        const summary = document.querySelector('#summary');
+        if (!summary || !summary.parentNode) {
+            console.error('Cannot add report subtitle: summary element not found.');
+            return false;
+        }
+
+        let subtitle = document.querySelector('#reportSubTitle');
+        if (!subtitle) {
+            subtitle = document.createElement('h2');
+            subtitle.id = 'reportSubTitle';
+        }
+        subtitle.classList.add('headingTwo');
+        subtitle.textContent = 'Pay Period ' + payrollInfo.payPeriod + ' -- ' + payrollInfo.week;
+        summary.parentNode.insertBefore(subtitle, summary);
+        console.log('Report subtitle set to "' + subtitle.textContent + '".');
+        return true;
+    }
+
+    // Display all entries reported by DataTables.
+    async function ensureAllRowsDisplayed(rowCount) {
+        if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
+            console.error('Cannot set page size: invalid row count.', rowCount);
+            return false;
+        }
+        if (rowCount === 0) {
+            console.log('The report contains no entries; skipping page-size change.');
+            return true;
+        }
+
+        var selectElement = document.querySelector('#DataTables_Table_0_length select');
+        const tbody = document.querySelector('#DataTables_Table_0 tbody');
+        const info = document.querySelector('#DataTables_Table_0_info');
+        if (!tbody || !info) {
+            console.error('Cannot verify rendered rows: table body or info element is missing.');
+            return false;
+        }
+
+        const getRenderedDataRowCount = () => Array.from(tbody.querySelectorAll('tr')).filter(row => {
+            const name = row.querySelector('td')?.textContent.trim() || '';
+            return !row.classList.contains('totals') && !/^report\s+totals?:?$/i.test(name);
+        }).length;
+        const isFullPageDisplayed = () => {
+            const infoMatch = info.textContent.match(
+                /Showing\s+([\d,]+)\s+to\s+([\d,]+)\s+of\s+([\d,]+)\s+entries/i
+            );
+            if (!infoMatch) return false;
+
+            const start = Number(infoMatch[1].replace(/,/g, ''));
+            const end = Number(infoMatch[2].replace(/,/g, ''));
+            const total = Number(infoMatch[3].replace(/,/g, ''));
+            return start === 1 && end === rowCount && total === rowCount &&
+                getRenderedDataRowCount() >= rowCount;
+        };
+
+        if (isFullPageDisplayed()) {
+            console.log('All ' + getRenderedDataRowCount() +
+                ' entries are already displayed; page-size change not needed.');
+            return true;
+        }
+        if (!selectElement) {
+            console.error('Cannot set page size: rows-per-page selector is missing.');
+            return false;
+        }
+
+        const optionValue = String(rowCount);
+        if (!Array.from(selectElement.options).some(option => option.value === optionValue)) {
+            var newOption = document.createElement('option');
+            newOption.value = optionValue;
+            newOption.text = optionValue;
+            selectElement.appendChild(newOption);
+        }
+
+        console.log('Setting rows per page to ' + rowCount + ' entries.');
+        const loadedAllRows = await new Promise(resolve => {
+            let settled = false;
+            let observer;
+            let timeoutId;
+            const finish = loaded => {
+                if (settled) return;
+                settled = true;
+                if (observer) observer.disconnect();
+                clearTimeout(timeoutId);
+                resolve(loaded);
+            };
+            const checkForFullPage = () => {
+                if (isFullPageDisplayed()) {
+                    const renderedDataRows = getRenderedDataRowCount();
+                    console.log('Confirmed all ' + renderedDataRows + ' detail rows are rendered.');
+                    finish(true);
+                }
+            };
+
+            observer = new MutationObserver(checkForFullPage);
+            observer.observe(tbody, { childList: true, subtree: true });
+            observer.observe(info, { childList: true, subtree: true, characterData: true });
+            timeoutId = setTimeout(() => {
+                const renderedDataRows = getRenderedDataRowCount();
+                console.error('Timed out waiting for all entries. DataTables info: "' +
+                    info.textContent.trim() + '"; rendered detail rows: ' + renderedDataRows + '.');
+                finish(false);
+            }, 5000);
+
+            selectElement.value = optionValue;
+            selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+            checkForFullPage();
+        });
+        return loadedAllRows;
+    }
+
+    // Remove non-hourly entries from the summary and detail table.
     function removeNonHourlyEntries() {
-        console.log("removeNonHourlyEntries function called.");
         var namesToRemove = [
             'Frank Facchini',
             'Sherry Facchini',
@@ -68,65 +219,111 @@
             'Sub Trade'
         ];
 
-        // Remove non-hourly summary items
         var summaryItems = document.querySelectorAll('#summary .list-item');
+        var removedSummaryItems = [];
         summaryItems.forEach(function(item) {
-            var text = item.textContent || item.innerText;
-            if (namesToRemove.some(function(name) { return text.includes(name); })) {
+            var name = namesToRemove.find(function(candidate) {
+                return (item.textContent || item.innerText || '').includes(candidate);
+            });
+            if (name) {
+                var hoursElement = item.querySelector('.shrink.columns');
+                var hours = hoursElement ? hoursElement.textContent.trim() : 'hours unavailable';
                 item.remove();
-                console.log("Removed summary item:", text);
+                removedSummaryItems.push(name + ' (' + hours + ')');
             }
         });
 
-        // Remove non-hourly details and update totals
-        const rows = document.querySelectorAll("#DataTables_Table_0 tbody tr:is(.odd, .even)");
-        let total = 0, count = 0;
+        var rows = document.querySelectorAll('#DataTables_Table_0 tbody tr');
+        var detailHeaders = Array.from(
+            document.querySelectorAll('#DataTables_Table_0 thead tr td, #DataTables_Table_0 thead tr th')
+        ).map(function(header) {
+            return header.textContent.trim();
+        });
+        var total = 0;
+        var count = 0;
+        var removedDetailRows = [];
+        var includedDetailRows = [];
 
-        rows.forEach((row) => {
-            const name = row.querySelector("td:nth-child(1)")?.textContent.trim();
-            const hoursCell = row.querySelector("td:nth-child(3)");
-            const hours = parseFloat(hoursCell?.textContent.trim()) || 0;
+        rows.forEach(function(row) {
+            var cells = Array.from(row.querySelectorAll('td')).map(function(cell) {
+                return cell.textContent.trim();
+            });
+            var name = cells[0] || '';
+            var hoursText = cells[2] || '0';
+            var hours = parseFloat(hoursText) || 0;
 
-            if (namesToRemove.includes(name)) {
+            if (row.classList.contains('totals') || /^report\s+totals?:?$/i.test(name)) {
+                return;
+            } else if (namesToRemove.includes(name)) {
                 row.remove();
-                console.log("Removed detail row for:", name);
+                removedDetailRows.push(cells);
             } else {
                 total += hours;
                 count++;
+                includedDetailRows.push(
+                    '+ ' + (name || '(unnamed)') +
+                    (cells[1] ? ' | ' + cells[1] : '') +
+                    ' | ' + hours.toFixed(2) +
+                    ' = ' + total.toFixed(2)
+                );
             }
         });
 
-        const totalCell = document.querySelector("#DataTables_Table_0 .totals td.u-textRight");
+        if (removedSummaryItems.length) {
+            console.log('Removed summary entries:\n- ' + removedSummaryItems.join('\n- '));
+        } else {
+            console.log('Removed summary entries: none.');
+        }
+        if (removedDetailRows.length) {
+            var markdownHeader = '| ' + detailHeaders.join(' | ') + ' |';
+            var markdownDivider = '| ' + detailHeaders.map(function() { return '---'; }).join(' | ') + ' |';
+            var markdownRows = removedDetailRows.map(function(cells) {
+                var escapedCells = cells.map(function(value) {
+                    return value.replace(/\s+/g, ' ').replace(/\|/g, '\\|');
+                });
+                return '| ' + escapedCells.join(' | ') + ' |';
+            });
+            console.log('Removed detail rows (' + removedDetailRows.length + '):\n' +
+                [markdownHeader, markdownDivider].concat(markdownRows).join('\n'));
+        } else {
+            console.log('Removed detail rows: none.');
+        }
+        console.log('Details rows included in total (' + count + '):\n' +
+            (includedDetailRows.length ? includedDetailRows.join('\n') : '(none)') +
+            '\nDetails total = ' + total.toFixed(2) + ' hours.');
+
+        var totalCell = document.querySelector('#DataTables_Table_0 .totals td.u-textRight');
         if (totalCell) {
             totalCell.textContent = total.toFixed(2);
-            console.log("Updated total cell:", total.toFixed(2));
+            console.log('Updated details total cell to ' + total.toFixed(2) + '.');
         }
 
-        const info = document.querySelector("#DataTables_Table_0_info");
+        var info = document.querySelector('#DataTables_Table_0_info');
         if (info) {
-            info.textContent = `Showing 1 to ${count} of ${count} entries`;
-            console.log("Updated info text:", info.textContent);
+            info.textContent = 'Showing 1 to ' + count + ' of ' + count + ' entries';
+            console.log('Updated table info to "' + info.textContent + '".');
         }
+        return total;
     }
 
-    // 03-Update-Summary-Total.js
+    // Recalculate the summary total.
     function updateSummaryTotal() {
-        console.log("updateSummaryTotal function called.");
         var total = 0;
         var items = document.querySelectorAll("#summary .list-item");
+        var skippedItems = 0;
+        var includedSummaryItems = [];
 
         items.forEach(function(item) {
             var nameElement = item.querySelector(".columns");
             var hoursElement = item.querySelector(".shrink.columns");
 
             if (!nameElement || !hoursElement) {
-                console.log("Skipping malformed summary item.");
+                skippedItems++;
                 return;
             }
 
             var name = nameElement.textContent.trim();
             if (name.includes("Total hours")) {
-                console.log('Skipping "Total hours" entry:', name);
                 return;
             }
 
@@ -134,34 +331,59 @@
             var hours = parseFloat((hoursText || "").replace(/[^0-9.-]+/g, ""));
 
             if (!isNaN(hours)) {
-                console.log("Including in total:", name, hours);
                 total += hours;
+                includedSummaryItems.push(
+                    '+ ' + name + ' | ' + hours.toFixed(2) +
+                    ' = ' + total.toFixed(2)
+                );
             } else {
-                console.log("Excluding from total (NaN):", name, hoursText);
+                skippedItems++;
             }
         });
 
-        console.log("Calculated total hours:", total.toFixed(2));
-
         var totalItem = document.querySelector("#summary .list-item.u-borderTopThicker .shrink.columns, #summary .u-borderTopThicker .shrink.columns");
         if (totalItem) {
-            console.log("Updating total hours in the DOM.");
             totalItem.textContent = total.toFixed(2) + " hours";
+            console.log('Updated summary total element to ' + total.toFixed(2) + ' hours.');
         } else {
-            console.log("Total hours item not found. Verifying selectors and structure...");
+            console.warn("Summary total element not found.");
         }
+        console.log('Summary rows included in total (' + includedSummaryItems.length + '):\n' +
+            (includedSummaryItems.length ? includedSummaryItems.join('\n') : '(none)') +
+            '\nSummary total = ' + total.toFixed(2) + ' hours.' +
+            (skippedItems ? ' Skipped ' + skippedItems + ' malformed item(s).' : ''));
+        return total;
     }
 
-    // Define the desired columns
+    // Compare the recalculated detail and summary totals.
+    function compareReportTotals(detailsTotal, summaryTotal) {
+        const detailsCents = Math.round(detailsTotal * 100);
+        const summaryCents = Math.round(summaryTotal * 100);
+        const differenceCents = summaryCents - detailsCents;
+
+        if (differenceCents === 0) {
+            console.log('Report totals match: details ' + detailsTotal.toFixed(2) +
+                ' hours; summary ' + summaryTotal.toFixed(2) + ' hours.');
+            return;
+        }
+
+        const direction = differenceCents > 0 ? 'higher' : 'lower';
+        console.warn('Report totals differ: details ' + detailsTotal.toFixed(2) +
+            ' hours; summary ' + summaryTotal.toFixed(2) +
+            ' hours. Summary is ' + (Math.abs(differenceCents) / 100).toFixed(2) +
+            ' hours ' + direction + ' than details.');
+    }
+
+    // Define the desired table columns.
     const desiredColumns = ["Name", "Date", "Hours", "Working on"];
     
-    // Function to check the currently displayed table headers
+    // Read the currently displayed table headers.
     function getDisplayedTableHeaders() {
         const tableHeaders = Array.from(document.querySelectorAll('#DataTables_Table_0 thead tr td'));
         return tableHeaders.map(header => header.innerText.trim());
     }
 
-    // Function to click on inputs to adjust column visibility
+    // Set column visibility to match the desired columns.
     function adjustColumnVisibility() {
         const displayedHeaders = getDisplayedTableHeaders();
         const labels = document.querySelectorAll('#column_selector_menu label');
@@ -169,63 +391,87 @@
         labels.forEach(label => {
             const input = label.querySelector('input');
             if (!input) {
-                console.log("Skipping column selector label without an input.");
                 return;
             }
 
             const columnName = label.textContent.trim();
             if (!columnName) {
-                console.log("Skipping blank column selector label.");
                 return;
             }
     
-            // Determine if the column should be displayed
             const shouldDisplay = desiredColumns.includes(columnName);
     
-            // Check if the column is currently displayed based on the headers
             const isDisplayed = displayedHeaders.includes(columnName);
     
-            // Click the input to adjust visibility based on the desired state
             if (shouldDisplay && !isDisplayed) {
-                console.log(`Turning on column: ${columnName}`); // Log message
-                input.click(); // Click to turn on the column
+                input.click();
+                console.log('Enabled column: ' + columnName + '.');
             } else if (!shouldDisplay && isDisplayed) {
-                console.log(`Turning off column: ${columnName}`); // Log message
-                input.click(); // Click to turn off the column
+                input.click();
+                console.log('Disabled column: ' + columnName + '.');
             }
         });
     }
 
-    // 05-Adjust Columns.js
+    // Set column visibility and widths.
     function adjustColumns() {
-        console.log("adjustColumns function called.");
-        
-        // Execute the function to adjust column visibility
         adjustColumnVisibility();
         
         const headers = document.querySelectorAll("#DataTables_Table_0 thead td");
         if (headers.length == 4) {
+            const widths = ["20%", "15%", "10%", "55%"];
             headers[0].style.width = "20%";
             headers[1].style.width = "15%";
             headers[2].style.width = "10%";
             headers[3].style.width = "55%";
-            console.log("Adjusted column widths.");
+            console.log('Set table column widths: ' +
+                Array.from(headers).map((header, index) =>
+                    header.innerText.trim() + ' ' + widths[index]
+                ).join(', ') + '.');
         } else {
-            console.log("Incorrect number of headers found.");
+            console.warn("Expected 4 table headers; found " + headers.length + ".");
         }
     }
 
-    // Attach functions to the window object
-    window.add100Selection = add100Selection;
+    // Run the report-processing steps in sequence.
+    console.log('Step 1/5: collect payroll period information.');
+    const payrollInfo = await collectPayrollInfo();
+    if (!payrollInfo) {
+        console.log('Cleanup cancelled; no report changes were made.');
+        return;
+    }
+    // Expose helper functions on the window object.
+    window.ensureAllRowsDisplayed = ensureAllRowsDisplayed;
+    window.collectPayrollInfo = collectPayrollInfo;
+    window.updateReportSubtitle = updateReportSubtitle;
     window.removeNonHourlyEntries = removeNonHourlyEntries;
     window.updateSummaryTotal = updateSummaryTotal;
     window.adjustColumns = adjustColumns;
 
-    // Execute functions in the required order
-    console.log("Executing functions in order.");
-    await add100Selection();
-    removeNonHourlyEntries();
-    updateSummaryTotal();
+    console.log('Step 2/5: ensure all detail rows are displayed.');
+    const initialInfo = document.querySelector('#DataTables_Table_0_info')?.textContent || '';
+    const initialInfoMatch = initialInfo.match(
+        /Showing\s+[\d,]+\s+to\s+[\d,]+\s+of\s+([\d,]+)\s+entries/i
+    );
+    const availableRowCount = initialInfoMatch
+        ? Number(initialInfoMatch[1].replace(/,/g, ''))
+        : NaN;
+    if (!Number.isSafeInteger(availableRowCount) || availableRowCount < 0) {
+        console.error('Cannot determine the available row count from the DataTables info text:', initialInfo);
+        return;
+    }
+    console.log('DataTables reports ' + availableRowCount + ' total entries.');
+    if (!await ensureAllRowsDisplayed(availableRowCount)) {
+        console.error('Stopping cleanup because the full detail data could not be confirmed as rendered.');
+        return;
+    }
+    if (!updateReportSubtitle(payrollInfo)) return;
+    console.log('Step 3/5: remove non-hourly entries and total details.');
+    const detailsTotal = removeNonHourlyEntries();
+    console.log('Step 4/5: recalculate summary total.');
+    const summaryTotal = updateSummaryTotal();
+    compareReportTotals(detailsTotal, summaryTotal);
+    console.log('Step 5/5: adjust displayed columns.');
     adjustColumns();
-    console.log("Script execution completed.");
+    console.log("Timesheet report cleanup complete.");
 })();
