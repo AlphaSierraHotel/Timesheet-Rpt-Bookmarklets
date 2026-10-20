@@ -2,6 +2,7 @@ name: Purge jsDelivr CDN Cache
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 jobs:
   purge-cache:
