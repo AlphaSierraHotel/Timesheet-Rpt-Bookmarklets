@@ -1,5 +1,5 @@
 (async function() {
-    const RELEASE_VERSION = "v0.4.0";
+    const RELEASE_VERSION = "v0.4.1";
     const TABLE_SELECTOR = '#DataTables_Table_0';
     const TABLE_INFO_SELECTOR = '#DataTables_Table_0_info';
     const SUMMARY_SELECTOR = '#summary .list-item';
