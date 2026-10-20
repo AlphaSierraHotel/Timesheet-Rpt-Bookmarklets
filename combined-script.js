@@ -5,15 +5,15 @@
     const SUMMARY_SELECTOR = '#summary .list-item';
     const DESIRED_COLUMNS = ["Name", "Date", "Hours", "Working on"];
     const NAMES_TO_REMOVE = [
-        'Frank Facchini',
-        'Sherry Facchini',
-        'Allen Hubble',
-        'Scott Hubble',
-        'Carefree Plumbing Inc',
-        'City Centre Contractors',
-        'JJ Downs',
-        'Sub Trade'
-    ];
+        'RnJhbmsgRmFjY2hpbmk=',
+        'U2hlcnJ5IEZhY2NoaW5p',
+        'QWxsZW4gSHViYmxl',
+        'U2NvdHQgSHViYmxl',
+        'Q2FyZWZyZWUgUGx1bWJpbmcgSW5j',
+        'Q2l0eSBDZW50cmUgQ29udHJhY3RvcnM=',
+        'SkogRG93bnM=',
+        'U3ViIFRyYWRl'
+    ].map(encodedName => atob(encodedName));
 
     console.log(`Timesheet report cleanup ${RELEASE_VERSION} started.`);
 

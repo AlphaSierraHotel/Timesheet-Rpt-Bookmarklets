@@ -89,3 +89,34 @@ The repository version tag follows the same format as the release: `v0.3.0`.
 
 - This is intended for a specific payroll workflow and specific page structure in Jobber.
 - The script is designed to run in the browser as a bookmarklet and is not meant to be used as a standalone Node.js script.
+- The names excluded by the script are Base64-encoded to avoid displaying them as plain text in the source. This is only obfuscation: anyone who can access the script can decode them, so do not use this to protect confidential information.
+
+## Managing the exclusion list
+
+The exclusion list is the `NAMES_TO_REMOVE` array near the top of [combined-script.js](./combined-script.js). Each entry is a Base64-encoded name, decoded by the script when it runs.
+
+### Add a name
+
+In PowerShell, encode the exact name as UTF-8:
+
+```powershell
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('New Name'))
+```
+
+Add the resulting string as a quoted entry in `NAMES_TO_REMOVE`, separating it from other entries with a comma. The script currently decodes entries with `atob()`, which handles the existing ASCII names; names containing non-ASCII characters require changing the script's decoder to handle UTF-8.
+
+### Remove a name
+
+Copy the encoded entries from `NAMES_TO_REMOVE` into this PowerShell snippet to see which name each represents:
+
+```powershell
+$encoded = @(
+    'RnJhbmsgRmFjY2hpbmk=',
+    'U2hlcnJ5IEZhY2NoaW5p'
+)
+$encoded | ForEach-Object {
+    [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_))
+}
+```
+
+Replace the sample strings with the entries from the script. Find the entry for the name you want to remove, then delete that encoded string from `NAMES_TO_REMOVE`.
