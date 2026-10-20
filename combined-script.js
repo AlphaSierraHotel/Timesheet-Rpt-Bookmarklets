@@ -1,6 +1,52 @@
 (async function() {
-    const RELEASE_VERSION = "v0.3.0";
+    const RELEASE_VERSION = "v0.4.0";
+    const TABLE_SELECTOR = '#DataTables_Table_0';
+    const TABLE_INFO_SELECTOR = '#DataTables_Table_0_info';
+    const SUMMARY_SELECTOR = '#summary .list-item';
+    const DESIRED_COLUMNS = ["Name", "Date", "Hours", "Working on"];
+    const NAMES_TO_REMOVE = [
+        'Frank Facchini',
+        'Sherry Facchini',
+        'Allen Hubble',
+        'Scott Hubble',
+        'Carefree Plumbing Inc',
+        'City Centre Contractors',
+        'JJ Downs',
+        'Sub Trade'
+    ];
+
     console.log(`Timesheet report cleanup ${RELEASE_VERSION} started.`);
+
+    function parseHoursValue(value) {
+        if (value === null || value === undefined) {
+            return NaN;
+        }
+
+        const normalized = String(value).replace(/\s+/g, ' ').trim();
+        if (!normalized) {
+            return NaN;
+        }
+
+        const stripped = normalized.replace(/[^0-9.\-]+/g, '');
+        if (!stripped || stripped === '-' || stripped === '.') {
+            return NaN;
+        }
+
+        const parsed = Number.parseFloat(stripped);
+        return Number.isFinite(parsed) ? parsed : NaN;
+    }
+
+    function getTableElement() {
+        return document.querySelector(TABLE_SELECTOR);
+    }
+
+    function getTableInfoElement() {
+        return document.querySelector(TABLE_INFO_SELECTOR);
+    }
+
+    function getSummaryItems() {
+        return document.querySelectorAll(SUMMARY_SELECTOR);
+    }
 
     // Collect the pay period and week selection.
     function collectPayrollInfo() {
@@ -126,9 +172,10 @@
             return true;
         }
 
-        var selectElement = document.querySelector('#DataTables_Table_0_length select');
-        const tbody = document.querySelector('#DataTables_Table_0 tbody');
-        const info = document.querySelector('#DataTables_Table_0_info');
+        const table = getTableElement();
+        const tbody = table ? table.querySelector('tbody') : null;
+        const info = getTableInfoElement();
+        const selectElement = document.querySelector('#DataTables_Table_0_length select');
         if (!tbody || !info) {
             console.error('Cannot verify rendered rows: table body or info element is missing.');
             return false;
@@ -163,7 +210,7 @@
 
         const optionValue = String(rowCount);
         if (!Array.from(selectElement.options).some(option => option.value === optionValue)) {
-            var newOption = document.createElement('option');
+            const newOption = document.createElement('option');
             newOption.value = optionValue;
             newOption.text = optionValue;
             selectElement.appendChild(newOption);
@@ -208,65 +255,55 @@
 
     // Remove non-hourly entries from the summary and detail table.
     function removeNonHourlyEntries() {
-        var namesToRemove = [
-            'Frank Facchini',
-            'Sherry Facchini',
-            'Allen Hubble',
-            'Scott Hubble',
-            'Carefree Plumbing Inc',
-            'City Centre Contractors',
-            'JJ Downs',
-            'Sub Trade'
-        ];
-
-        var summaryItems = document.querySelectorAll('#summary .list-item');
-        var removedSummaryItems = [];
-        summaryItems.forEach(function(item) {
-            var name = namesToRemove.find(function(candidate) {
+        const summaryItems = getSummaryItems();
+        const removedSummaryItems = [];
+        summaryItems.forEach(item => {
+            const name = NAMES_TO_REMOVE.find(candidate => {
                 return (item.textContent || item.innerText || '').includes(candidate);
             });
-            if (name) {
-                var hoursElement = item.querySelector('.shrink.columns');
-                var hours = hoursElement ? hoursElement.textContent.trim() : 'hours unavailable';
-                item.remove();
-                removedSummaryItems.push(name + ' (' + hours + ')');
+            if (!name) {
+                return;
             }
+
+            const hoursElement = item.querySelector('.shrink.columns');
+            const hours = hoursElement ? hoursElement.textContent.trim() : 'hours unavailable';
+            item.remove();
+            removedSummaryItems.push(name + ' (' + hours + ')');
         });
 
-        var rows = document.querySelectorAll('#DataTables_Table_0 tbody tr');
-        var detailHeaders = Array.from(
-            document.querySelectorAll('#DataTables_Table_0 thead tr td, #DataTables_Table_0 thead tr th')
-        ).map(function(header) {
-            return header.textContent.trim();
-        });
-        var total = 0;
-        var count = 0;
-        var removedDetailRows = [];
-        var includedDetailRows = [];
+        const rows = document.querySelectorAll(TABLE_SELECTOR + ' tbody tr');
+        const detailHeaders = Array.from(
+            document.querySelectorAll(TABLE_SELECTOR + ' thead tr td, ' + TABLE_SELECTOR + ' thead tr th')
+        ).map(header => header.textContent.trim());
+        let total = 0;
+        let count = 0;
+        const removedDetailRows = [];
+        const includedDetailRows = [];
 
-        rows.forEach(function(row) {
-            var cells = Array.from(row.querySelectorAll('td')).map(function(cell) {
-                return cell.textContent.trim();
-            });
-            var name = cells[0] || '';
-            var hoursText = cells[2] || '0';
-            var hours = parseFloat(hoursText) || 0;
+        rows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim());
+            const name = cells[0] || '';
+            const hoursText = cells[2] || '0';
+            const hoursValue = parseHoursValue(hoursText);
+            const hours = Number.isFinite(hoursValue) ? hoursValue : 0;
 
             if (row.classList.contains('totals') || /^report\s+totals?:?$/i.test(name)) {
                 return;
-            } else if (namesToRemove.includes(name)) {
+            }
+            if (NAMES_TO_REMOVE.includes(name)) {
                 row.remove();
                 removedDetailRows.push(cells);
-            } else {
-                total += hours;
-                count++;
-                includedDetailRows.push(
-                    '+ ' + (name || '(unnamed)') +
-                    (cells[1] ? ' | ' + cells[1] : '') +
-                    ' | ' + hours.toFixed(2) +
-                    ' = ' + total.toFixed(2)
-                );
+                return;
             }
+
+            total += hours;
+            count++;
+            includedDetailRows.push(
+                '+ ' + (name || '(unnamed)') +
+                (cells[1] ? ' | ' + cells[1] : '') +
+                ' | ' + hours.toFixed(2) +
+                ' = ' + total.toFixed(2)
+            );
         });
 
         if (removedSummaryItems.length) {
@@ -275,12 +312,10 @@
             console.log('Removed summary entries: none.');
         }
         if (removedDetailRows.length) {
-            var markdownHeader = '| ' + detailHeaders.join(' | ') + ' |';
-            var markdownDivider = '| ' + detailHeaders.map(function() { return '---'; }).join(' | ') + ' |';
-            var markdownRows = removedDetailRows.map(function(cells) {
-                var escapedCells = cells.map(function(value) {
-                    return value.replace(/\s+/g, ' ').replace(/\|/g, '\\|');
-                });
+            const markdownHeader = '| ' + detailHeaders.join(' | ') + ' |';
+            const markdownDivider = '| ' + detailHeaders.map(function() { return '---'; }).join(' | ') + ' |';
+            const markdownRows = removedDetailRows.map(cells => {
+                const escapedCells = cells.map(value => value.replace(/\s+/g, ' ').replace(/\|/g, '\\|'));
                 return '| ' + escapedCells.join(' | ') + ' |';
             });
             console.log('Removed detail rows (' + removedDetailRows.length + '):\n' +
@@ -292,13 +327,13 @@
             (includedDetailRows.length ? includedDetailRows.join('\n') : '(none)') +
             '\nDetails total = ' + total.toFixed(2) + ' hours.');
 
-        var totalCell = document.querySelector('#DataTables_Table_0 .totals td.u-textRight');
+        const totalCell = document.querySelector(TABLE_SELECTOR + ' .totals td.u-textRight');
         if (totalCell) {
             totalCell.textContent = total.toFixed(2);
             console.log('Updated details total cell to ' + total.toFixed(2) + '.');
         }
 
-        var info = document.querySelector('#DataTables_Table_0_info');
+        const info = getTableInfoElement();
         if (info) {
             info.textContent = 'Showing 1 to ' + count + ' of ' + count + ' entries';
             console.log('Updated table info to "' + info.textContent + '".');
@@ -308,29 +343,29 @@
 
     // Recalculate the summary total.
     function updateSummaryTotal() {
-        var total = 0;
-        var items = document.querySelectorAll("#summary .list-item");
-        var skippedItems = 0;
-        var includedSummaryItems = [];
+        let total = 0;
+        const items = getSummaryItems();
+        let skippedItems = 0;
+        const includedSummaryItems = [];
 
-        items.forEach(function(item) {
-            var nameElement = item.querySelector(".columns");
-            var hoursElement = item.querySelector(".shrink.columns");
+        items.forEach(item => {
+            const nameElement = item.querySelector('.columns');
+            const hoursElement = item.querySelector('.shrink.columns');
 
             if (!nameElement || !hoursElement) {
                 skippedItems++;
                 return;
             }
 
-            var name = nameElement.textContent.trim();
-            if (name.includes("Total hours")) {
+            const name = nameElement.textContent.trim();
+            if (name.includes('Total hours')) {
                 return;
             }
 
-            var hoursText = hoursElement.textContent || hoursElement.innerText || "";
-            var hours = parseFloat((hoursText || "").replace(/[^0-9.-]+/g, ""));
+            const hoursText = hoursElement.textContent || hoursElement.innerText || '';
+            const hours = parseHoursValue(hoursText);
 
-            if (!isNaN(hours)) {
+            if (!Number.isNaN(hours)) {
                 total += hours;
                 includedSummaryItems.push(
                     '+ ' + name + ' | ' + hours.toFixed(2) +
@@ -341,12 +376,12 @@
             }
         });
 
-        var totalItem = document.querySelector("#summary .list-item.u-borderTopThicker .shrink.columns, #summary .u-borderTopThicker .shrink.columns");
+        const totalItem = document.querySelector('#summary .list-item.u-borderTopThicker .shrink.columns, #summary .u-borderTopThicker .shrink.columns');
         if (totalItem) {
-            totalItem.textContent = total.toFixed(2) + " hours";
+            totalItem.textContent = total.toFixed(2) + ' hours';
             console.log('Updated summary total element to ' + total.toFixed(2) + ' hours.');
         } else {
-            console.warn("Summary total element not found.");
+            console.warn('Summary total element not found.');
         }
         console.log('Summary rows included in total (' + includedSummaryItems.length + '):\n' +
             (includedSummaryItems.length ? includedSummaryItems.join('\n') : '(none)') +
@@ -375,11 +410,9 @@
     }
 
     // Define the desired table columns.
-    const desiredColumns = ["Name", "Date", "Hours", "Working on"];
-    
     // Read the currently displayed table headers.
     function getDisplayedTableHeaders() {
-        const tableHeaders = Array.from(document.querySelectorAll('#DataTables_Table_0 thead tr td'));
+        const tableHeaders = Array.from(document.querySelectorAll(TABLE_SELECTOR + ' thead tr td'));
         return tableHeaders.map(header => header.innerText.trim());
     }
 
@@ -387,7 +420,7 @@
     function adjustColumnVisibility() {
         const displayedHeaders = getDisplayedTableHeaders();
         const labels = document.querySelectorAll('#column_selector_menu label');
-    
+
         labels.forEach(label => {
             const input = label.querySelector('input');
             if (!input) {
@@ -398,11 +431,10 @@
             if (!columnName) {
                 return;
             }
-    
-            const shouldDisplay = desiredColumns.includes(columnName);
-    
+
+            const shouldDisplay = DESIRED_COLUMNS.includes(columnName);
             const isDisplayed = displayedHeaders.includes(columnName);
-    
+
             if (shouldDisplay && !isDisplayed) {
                 input.click();
                 console.log('Enabled column: ' + columnName + '.');
@@ -416,20 +448,20 @@
     // Set column visibility and widths.
     function adjustColumns() {
         adjustColumnVisibility();
-        
-        const headers = document.querySelectorAll("#DataTables_Table_0 thead td");
-        if (headers.length == 4) {
-            const widths = ["20%", "15%", "10%", "55%"];
-            headers[0].style.width = "20%";
-            headers[1].style.width = "15%";
-            headers[2].style.width = "10%";
-            headers[3].style.width = "55%";
+
+        const headers = document.querySelectorAll(TABLE_SELECTOR + ' thead td');
+        if (headers.length === 4) {
+            const widths = ['20%', '15%', '10%', '55%'];
+            headers[0].style.width = '20%';
+            headers[1].style.width = '15%';
+            headers[2].style.width = '10%';
+            headers[3].style.width = '55%';
             console.log('Set table column widths: ' +
                 Array.from(headers).map((header, index) =>
                     header.innerText.trim() + ' ' + widths[index]
                 ).join(', ') + '.');
         } else {
-            console.warn("Expected 4 table headers; found " + headers.length + ".");
+            console.warn('Expected 4 table headers; found ' + headers.length + '.');
         }
     }
 
@@ -440,6 +472,7 @@
         console.log('Cleanup cancelled; no report changes were made.');
         return;
     }
+
     // Expose helper functions on the window object.
     window.ensureAllRowsDisplayed = ensureAllRowsDisplayed;
     window.collectPayrollInfo = collectPayrollInfo;
@@ -449,7 +482,7 @@
     window.adjustColumns = adjustColumns;
 
     console.log('Step 2/5: ensure all detail rows are displayed.');
-    const initialInfo = document.querySelector('#DataTables_Table_0_info')?.textContent || '';
+    const initialInfo = getTableInfoElement()?.textContent || '';
     const initialInfoMatch = initialInfo.match(
         /Showing\s+[\d,]+\s+to\s+[\d,]+\s+of\s+([\d,]+)\s+entries/i
     );
